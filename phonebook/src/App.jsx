@@ -5,6 +5,8 @@ import Filter from './components/Filter'
 import PersonForm from './components/PersonForm'
 import Persons from './components/Persons'
 
+import personService from './services/persons'
+
 const App = () => {
   const [persons, setPersons] = useState([])
   const [newName, setNewName] = useState('')
@@ -32,22 +34,58 @@ const App = () => {
   }
 
   const addPerson = (event) => {
-    event.preventDefault()
+  event.preventDefault()
 
-    if (persons.some(person => person.name === newName)) {
-      alert(`${newName} is already added to phonebook`)
-      return
-    }
+  const existingPerson = persons.find(p => p.name === newName)
 
-    const personObject = {
-      name: newName,
-      number: newNumber
-    }
-
-    setPersons(persons.concat(personObject))
-    setNewName('')
-    setNewNumber('')
+  const personObject = {
+    name: newName,
+    number: newNumber
   }
+
+  if (existingPerson) {
+    const confirmUpdate = window.confirm(
+      `${newName} is already added to phonebook, replace the old number with a new one?`
+    )
+
+    if (confirmUpdate) {
+      personService
+        .update(existingPerson.id, { ...existingPerson, number: newNumber })
+        .then(returnedPerson => {
+          setPersons(persons.map(p => p.id !== existingPerson.id ? p : returnedPerson))
+          setNewName('')
+          setNewNumber('')
+        })
+        .catch(error => {
+          alert(`Information of ${newName} has already been removed from server`)
+          setPersons(persons.filter(p => p.id !== existingPerson.id))
+        })
+    }
+  } else {
+    personService
+      .create(personObject)
+      .then(returnedPerson => {
+        setPersons(persons.concat(returnedPerson))
+        setNewName('')
+        setNewNumber('')
+      })
+  }
+}
+
+const handleDelete = (id, name) => {
+  if (window.confirm(`Delete ${name} ?`)) {
+    personService
+      .remove(id)
+      .then(() => {
+        setPersons(persons.filter(person => person.id !== id))
+      })
+      .catch(error => {
+        alert(`The person '${name}' was already deleted from server`)
+        setPersons(persons.filter(person => person.id !== id))
+      })
+  }
+}
+
 
   const personsToShow = persons.filter(person =>
     person.name.toLowerCase().includes(filter.toLowerCase())
@@ -68,7 +106,7 @@ const App = () => {
       />
 
       <h3>Numbers</h3>
-      <Persons persons={personsToShow} />
+      <Persons persons={personsToShow} handleDelete={handleDelete}/>
     </div>
   )
 }
